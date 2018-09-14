@@ -7,19 +7,50 @@ from random import *
 from datacleaner import autoclean
 # Imports the Google Cloud client library
 from google.cloud import bigquery
+from google.cloud.bigquery import LoadJobConfig
+from google.cloud.bigquery import SchemaField
 
 import os
+
+schema_obj = {'incident_id': 'STRING',
+              'date': 'DATE',
+              'state': 'STRING',
+              'city_or_county': 'STRING',
+              'address': 'STRING',
+              'n_killed': 'NUMERIC',
+              'n_injured': 'NUMERIC',
+              'congressional_district': 'STRING',
+              'gun_stolen': 'STRING',
+              'gun_type': 'STRING',
+              'incident_characteristics': 'STRING',
+              'latitude': 'NUMERIC',
+              'location_description': 'STRING',
+              'longitude': 'NUMERIC',
+              'n_guns_involved': 'NUMERIC',
+              'participant_age': 'STRING',
+              'participant_age_group': 'STRING',
+              'participant_gender': 'STRING',
+              'participant_name': 'STRING',
+              'participant_relationship': 'STRING',
+              'participant_status': 'STRING',
+              'participant_type': 'STRING',
+              'state_house_district': 'STRING',
+              'state_senate_district': 'STRING'
+              }
 
 
 def upload():
     client = bigquery.Client(project='seraphic-fire-151618')
+
+    schema = [SchemaField(key, value) for key, value in schema_obj.items()]
 
     dataset_ref = client.dataset('crime_main')
     table_ref = dataset_ref.table('gun_violence')
     job_config = bigquery.LoadJobConfig()
     job_config.source_format = bigquery.SourceFormat.CSV
     job_config.skip_leading_rows = 1
-    job_config.autodetect = True
+    job_config.schema = schema
+    job_config.ignore_unknown_values = True
 
     with open('cleaned_gun.csv', 'rb') as source_file:
         job = client.load_table_from_file(
@@ -28,7 +59,10 @@ def upload():
             location='US',  # Must match the destination dataset location.
             job_config=job_config)  # API request
 
-    job.result()  # Waits for table load to complete.
+    print(job.result())  # Waits for table load to complete.
+    if job.errors is not None:
+        print(job.errors[0])
+        print(job.errors[1])
 
 
 def load():
@@ -77,6 +111,7 @@ def drop_row(df):
         'sources',
         'incident_url',
         'source_url',
+        'notes',
         'incident_url_fields_missing'
     ]
 
@@ -85,8 +120,8 @@ def drop_row(df):
 
 
 def to_numeric(df):
-    df['latitude'] = df['latitude'].apply(pd.to_numeric)
-    df['longitude'] = df['longitude'].apply(pd.to_numeric)
+    df['latitude'] = df['latitude'].apply(pd.to_numeric).round(4)
+    df['longitude'] = df['longitude'].apply(pd.to_numeric).round(4)
     return df
 
 
@@ -100,15 +135,16 @@ def __main__():
 
     df = load()
     df = add_missing_row(df)
-    df = add_additional_feature(df)
+    # df = add_additional_feature(df)
     # df = change_data_test(df)
     df = drop_row(df)
     df = to_numeric(df)
-    df = remove_char(df)
+    # df = remove_char(df)
     # df = autoclean(df)
 
-    df.to_csv("cleaned_gun.csv")
+    df.to_csv("cleaned_gun.csv", index=False)
     print(df.loc[15153])
 
 
 __main__()
+upload()
